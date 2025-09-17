@@ -144,7 +144,7 @@ def _parse_kv_args(s: str) -> Dict[str, str]:
     return res
 
 
-@register("签到兑换插件", "Kimi&Meguminlove", "积分兑换签到系统", "1.0.0", "https://github.com/Meguminlove/astrbot_checkin_gift_plugin")
+@register("签到兑换插件", "lin-China", "积分兑换签到系统", "1.0.1", "https://github.com/lin-China/astrbot_checkin_gift_plugin")
 class CheckInGiftPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
