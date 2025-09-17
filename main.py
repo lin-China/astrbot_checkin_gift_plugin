@@ -16,7 +16,7 @@ import astrbot.api.message_components as Comp
     "astrbot_checkin_gift_plugin",
     "your_name",
     "签到积分兑换礼品插件",
-    "1.0.0",
+    "1.0.2",
     "https://example.com/your/repo",
 )
 class CheckinGiftPlugin(Star):
