@@ -16,7 +16,7 @@ import astrbot.api.message_components as Comp
     "astrbot_checkin_gift_plugin",
     "your_name",
     "签到积分兑换礼品插件",
-    "1.0.2",
+    "1.0.3",  # 版本号更新
     "https://example.com/your/repo",
 )
 class CheckinGiftPlugin(Star):
@@ -98,10 +98,33 @@ class CheckinGiftPlugin(Star):
     def _gift_exists(self, name: str) -> bool:
         return name in self._gifts["gifts"]
 
+    def _ensure_runtime_objs(self):
+        """运行期自修复，解决热重载/旧实例缺成员导致的 AttributeError。"""
+        if not hasattr(self, "_lock") or self._lock is None:
+            self._lock = asyncio.Lock()
+        if not hasattr(self, "_io_lock") or self._io_lock is None:
+            self._io_lock = asyncio.Lock()
+        if not hasattr(self, "_gifts") or not hasattr(self, "_users"):
+            self._gifts = {"config": {"daily_checkin_points": 10}, "gifts": {}}
+            self._users = {"users": {}}
+        # 若文件丢失或为空也可尝试补装载
+        if not self._gifts.get("gifts"):
+            # 轻量安全加载
+            try:
+                self._gifts = self._load_json(self.gifts_file, default=self._gifts)
+            except Exception as e:
+                logger.warning(f"重新加载 gifts 失败: {e}")
+        if not self._users.get("users"):
+            try:
+                self._users = self._load_json(self.users_file, default=self._users)
+            except Exception as e:
+                logger.warning(f"重新加载 users 失败: {e}")
+
     # ---------------------- 普通用户指令 ----------------------
     @filter.command("checkin")
     async def checkin(self, event: AstrMessageEvent) -> MessageEventResult:
         """每日签到"""
+        self._ensure_runtime_objs()  # 新增
         uid = event.get_sender_id()
         today = datetime.now().strftime("%Y-%m-%d")
         async with self._lock:
@@ -119,6 +142,7 @@ class CheckinGiftPlugin(Star):
     @filter.command("gifts")
     async def list_gifts_public(self, event: AstrMessageEvent):
         """查看礼品列表（普通用户）"""
+        self._ensure_runtime_objs()  # 新增
         uid = event.get_sender_id()
         async with self._lock:
             self._ensure_user(uid)
@@ -142,6 +166,7 @@ class CheckinGiftPlugin(Star):
     @filter.command("redeem")
     async def redeem_gift(self, event: AstrMessageEvent, gift_name: str):
         """兑换礼品"""
+        self._ensure_runtime_objs()  # 新增
         uid = event.get_sender_id()
         async with self._lock:
             if not self._gift_exists(gift_name):
@@ -205,6 +230,7 @@ class CheckinGiftPlugin(Star):
     @filter.command_group("gift")
     def gift_group(self):
         """管理员礼品管理指令组"""
+        self._ensure_runtime_objs()  # 新增
         pass
 
     @gift_group.command("add")
@@ -218,6 +244,7 @@ class CheckinGiftPlugin(Star):
         per_user_limit: int = 0,
     ):
         """添加礼品"""
+        self._ensure_runtime_objs()  # 新增
         async with self._lock:
             if self._gift_exists(name):
                 yield event.plain_result("礼品已存在。")
@@ -237,6 +264,7 @@ class CheckinGiftPlugin(Star):
     @filter.permission_type(filter.PermissionType.ADMIN)
     async def gift_add_codes(self, event: AstrMessageEvent, name: str, codes: str):
         """批量添加卡密，逗号分隔"""
+        self._ensure_runtime_objs()  # 新增
         code_list = [c.strip() for c in codes.split(",") if c.strip()]
         if not code_list:
             yield event.plain_result("未解析到卡密。")
@@ -255,6 +283,7 @@ class CheckinGiftPlugin(Star):
     @gift_group.command("setpoint")
     @filter.permission_type(filter.PermissionType.ADMIN)
     async def gift_set_point(self, event: AstrMessageEvent, name: str, new_cost: int):
+        self._ensure_runtime_objs()  # 新增
         async with self._lock:
             if not self._gift_exists(name):
                 yield event.plain_result("礼品不存在。")
@@ -268,6 +297,7 @@ class CheckinGiftPlugin(Star):
     async def gift_set_qty(
         self, event: AstrMessageEvent, name: str, new_total: int
     ):
+        self._ensure_runtime_objs()  # 新增
         async with self._lock:
             if not self._gift_exists(name):
                 yield event.plain_result("礼品不存在。")
@@ -284,6 +314,7 @@ class CheckinGiftPlugin(Star):
     async def gift_set_limit(
         self, event: AstrMessageEvent, name: str, new_limit: int
     ):
+        self._ensure_runtime_objs()  # 新增
         async with self._lock:
             if not self._gift_exists(name):
                 yield event.plain_result("礼品不存在。")
@@ -295,6 +326,7 @@ class CheckinGiftPlugin(Star):
     @gift_group.command("del")
     @filter.permission_type(filter.PermissionType.ADMIN)
     async def gift_delete(self, event: AstrMessageEvent, name: str):
+        self._ensure_runtime_objs()  # 新增
         async with self._lock:
             if not self._gift_exists(name):
                 yield event.plain_result("礼品不存在。")
@@ -306,6 +338,7 @@ class CheckinGiftPlugin(Star):
     @gift_group.command("list")
     @filter.permission_type(filter.PermissionType.ADMIN)
     async def gift_list_admin(self, event: AstrMessageEvent):
+        self._ensure_runtime_objs()  # 新增
         async with self._lock:
             gifts = self._gifts["gifts"]
             if not gifts:
@@ -323,6 +356,7 @@ class CheckinGiftPlugin(Star):
     async def gift_grant_points(
         self, event: AstrMessageEvent, qq: str, points: int
     ):
+        self._ensure_runtime_objs()  # 新增
         async with self._lock:
             self._ensure_user(qq)
             self._users["users"][qq]["points"] += int(points)
@@ -334,6 +368,7 @@ class CheckinGiftPlugin(Star):
     async def gift_deduct_points(
         self, event: AstrMessageEvent, qq: str, points: int
     ):
+        self._ensure_runtime_objs()  # 新增
         async with self._lock:
             self._ensure_user(qq)
             user = self._users["users"][qq]
@@ -344,6 +379,7 @@ class CheckinGiftPlugin(Star):
     @gift_group.command("setcheckin")
     @filter.permission_type(filter.PermissionType.ADMIN)
     async def gift_set_checkin(self, event: AstrMessageEvent, points: int):
+        self._ensure_runtime_objs()  # 新增
         async with self._lock:
             self._gifts["config"]["daily_checkin_points"] = int(points)
             await self._save_all()
@@ -352,6 +388,7 @@ class CheckinGiftPlugin(Star):
     @gift_group.command("info")
     @filter.permission_type(filter.PermissionType.ADMIN)
     async def gift_info(self, event: AstrMessageEvent, name: str):
+        self._ensure_runtime_objs()  # 新增
         async with self._lock:
             if not self._gift_exists(name):
                 yield event.plain_result("礼品不存在。")
@@ -375,6 +412,7 @@ class CheckinGiftPlugin(Star):
     async def _send_private_code(
         self, event: AstrMessageEvent, uid: str, gift_name: str, code: str
     ) -> bool:
+        self._ensure_runtime_objs()  # 新增
         """
         尝试私聊发送卡密。若无法构造私聊 session，则返回 False。
         仅在同平台支持私聊时有效，构造 heuristic: platform:private:uid
@@ -393,6 +431,12 @@ class CheckinGiftPlugin(Star):
 
     # ---------------------- 终止 ----------------------
     async def terminate(self):
+        self._ensure_runtime_objs()  # 新增
         """插件卸载时保存数据"""
         async with self._lock:
             await self._save_all()
+
+
+# 兼容旧类名（避免热更新时期引用旧名称导致 _lock 缺失）
+CheckInGiftPlugin = CheckinGiftPlugin
+
